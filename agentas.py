@@ -1,15 +1,15 @@
 import os
 import requests
 from bs4 import BeautifulSoup
+from urllib.parse import quote
 
-# Jūsų nurodytos tiesioginės nurodos
+# Jūsų nurodytos tiesioginės nuorodos
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
     "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-eps100-100-x-1000-x-1000-mm-crd62v6v"
 }
 
 def patikrinti_putplascio_kainas():
-    # Pasiimame ScrapingBee API raktą iš GitHub saugyklos
     api_key = os.getenv("SCRAPINGBEE_API_KEY")
     
     if not api_key:
@@ -21,8 +21,9 @@ def patikrinti_putplascio_kainas():
     for parduotuve, url in parduotuves.items():
         print(f"Jungiamasi prie {parduotuve} per ScrapingBee...")
         try:
-            # Sukuriame užklausą per ScrapingBee API su JavaScript palaikymu
-            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={url}&render_js=false"
+            # Saugiai užkoduojame nuorodą, kad API jos nesugadintų
+            encoded_url = quote(url, safe='')
+            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
             response = requests.get(scrapingbee_url, timeout=30)
             print(f"-> {parduotuve} HTTP statusas: {response.status_code}")
@@ -30,18 +31,26 @@ def patikrinti_putplascio_kainas():
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Priklausomai nuo parduotuvės, ištraukiame pavadinimą ir kainą
-                if parduotuve == "Senukai":
-                    pavadinimo_el = soup.select_one("h1.product-details-title, h1")
-                    kainos_el = soup.select_one("span.price, div.price span, span[data-price]")
-                else:  # Ermitazas
-                    pavadinimo_el = soup.select_one("h1.product-title, h1")
-                    kainos_el = soup.select_one("span.price, div.price, span[data-price]")
+                pavadinimas = None
+                kaina = None
                 
-                if pavadinimo_el and kainos_el:
-                    pavadinimas = pavadinimo_el.get_text(strip=True)
-                    kaina = kainos_el.get_text(strip=True)
+                if parduotuve == "Senukai":
+                    # Paieška Senukų puslapyje
+                    pav_el = soup.select_one("h1")
+                    # Ieškom elementų, kurie dažniausiai talpina kainą Senukuose
+                    kain_el = soup.select_one(".price, span[data-price], .catalog-price")
+                    if pav_el: pavadinimas = pavadin_el.get_text(strip=True)
+                    if kain_el: kaina = kain_el.get_text(strip=True)
                     
+                else:  # Ermitazas
+                    # Paieška Ermitažo puslapyje
+                    pav_el = soup.select_one("h1")
+                    # Ermitažo kainos blokai
+                    kain_el = soup.select_one(".price, .product-price, span[data-price]")
+                    if pav_el: pavadinimas = pav_el.get_text(strip=True)
+                    if kain_el: kaina = kain_el.get_text(strip=True)
+                
+                if pavadinimas and kaina:
                     rezultatai.append({
                         "Parduotuve": parduotuve,
                         "Prekė": pavadinimas,
@@ -49,7 +58,7 @@ def patikrinti_putplascio_kainas():
                     })
                     print(f"-> Sėkmė! Rasta: {pavadinimas} | Kaina: {kaina}")
                 else:
-                    print(f"-> Puslapis gautas, bet nepavyko tiksliai rasti kainos elementų struktūros.")
+                    print(f"-> Puslapis gautas, bet nepavyko tiksliai rasti kainos ar pavadinimo elementų.")
             else:
                 print(f"-> Klaida: ScrapingBee grąžino kodą {response.status_code}")
                 
