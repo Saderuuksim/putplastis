@@ -21,18 +21,16 @@ def patikrinti_putplascio_kainas():
     rezultatai = []
     
     for parduotuve, url in parduotuves.items():
-        print(f"Jungiamasi prie {parduotuve} per ScrapingBee...")
+        print(f"Jungiamasi prie {parduotuve}...")
         try:
             encoded_url = quote(url, safe='')
             
-            # Nustatome render_js pagal parduotuvės specifiką
             if parduotuve in ["Senukai", "MokiVezi"]:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
             response = requests.get(scrapingbee_url, timeout=45)
-            print(f"-> {parduotuve} HTTP statusas: {response.status_code}")
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -44,74 +42,67 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Atskiros kainos išrinkimo taisyklės kiekvienai parduotuvei remiantis puslapių struktūra
+                # Tikslus kainos traukimas pagal parduotuves
                 if parduotuve == "Senukai":
                     for el in soup.find_all(['span', 'div', 'p']):
-                        tekstas = el.get_text(strip=True)
-                        if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
-                            kaina = tekstas
+                        t = el.get_text(strip=True)
+                        if ('€' in t or 'EUR' in t) and len(t) < 20 and any(c.isdigit() for c in t):
+                            kaina = t
                             break
-                            
                 elif parduotuve == "Ermitazas":
                     for el in soup.find_all(['span', 'div', 'strong']):
-                        tekstas = el.get_text(strip=True)
-                        if len(tekstas) in [4, 5, 6] and tekstas.replace('.', '').replace(',', '').isdigit():
-                            if int(tekstas) > 10:
-                                t_str = str(tekstas)
-                                if len(t_str) >= 3 and '.' not in t_str and ',' not in t_str:
-                                    kaina = f"{t_str[:-2]},{t_str[-2:]} €"
-                                else:
-                                    kaina = t_str + " €"
-                                break
-                                
+                        t = el.get_text(strip=True)
+                        if len(t) in [4, 5, 6] and t.replace('.', '').replace(',', '').isdigit() and int(t) > 10:
+                            if '.' not in t and ',' not in t:
+                                kaina = f"{t[:-2]},{t[-2:]} €"
+                            else:
+                                kaina = t + " €"
+                            break
                 elif parduotuve == "Lemora":
-                    # Lemoros nuotraukoje matome kainą su € simboliu (pvz., 55,04 €)
-                    for el in soup.find_all(['div', 'span', 'b', 'strong']):
-                        tekstas = el.get_text(strip=True)
-                        if '€' in tekstas and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
-                            kaina = tekstas
+                    # Lemoros kainos blokas
+                    for el in soup.select("div, span"):
+                        t = el.get_text(strip=True)
+                        if '€' in t and ('pak' in t.lower() or len(t) < 10) and any(c.isdigit() for c in t):
+                            kaina = t
                             break
-                            
                 elif parduotuve == "ViskasNamams":
-                    # ViskasNamams nuotraukoje kaina pateikiama formatu 50,71 € / pak
-                    for el in soup.find_all(['div', 'span', 'strong']):
-                        tekstas = el.get_text(strip=True)
-                        if '€' in tekstas and ('pak' in tekstas.lower() or len(tekstas) < 15) and any(c.isdigit() for c in tekstas):
-                            kaina = tekstas
+                    for el in soup.select("div, span"):
+                        t = el.get_text(strip=True)
+                        if '€' in t and '/' in t and any(c.isdigit() for c in t) and len(t) < 25:
+                            kaina = t
                             break
-                            
                 elif parduotuve == "MokiVezi":
-                    # MokiVezi lojalumo kaina nuotraukoje rodoma su raudona kortele (pvz., 69,59 € / pak.)
-                    for el in soup.find_all(['div', 'span', 'strong', 'b']):
-                        tekstas = el.get_text(strip=True)
-                        if '€' in tekstas and ('pak' in tekstas.lower() or len(tekstas) < 15) and any(c.isdigit() for c in tekstas):
-                            kaina = tekstas
+                    for el in soup.select("div, span"):
+                        t = el.get_text(strip=True)
+                        if '€' in t and 'pak' in t.lower() and any(c.isdigit() for c in t) and len(t) < 25:
+                            kaina = t
                             break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
                         "Parduotuve": parduotuve,
-                        "Prekė": pavadinimas,
+                        "Prekė": pavadinimas[:40] + "..." if len(pavadinimas) > 40 else pavadinimas,
                         "Kaina": kaina
                     })
-                    print(f"-> Sėkmė! Rasta: {pavadinimas} | Kaina: {kaina}")
+                    print(f"-> {parduotuve}: Rasta kaina {kaina}")
                 else:
-                    print(f"-> Puslapis gautas, bet nepavyko išrinkti kainos.")
-                    if pavadinimas:
-                        print(f"   Pavadinimas: {pavadinimas}")
+                    print(f"-> {parduotuve}: Nepavyko rasti kainos.")
             else:
-                print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code}")
+                print(f"-> {parduotuve}: HTTP klaida {response.status_code}")
                 
         except Exception as e:
-            print(f"-> Įvyko klaida jungiantis prie {parduotuve}: {e}")
+            print(f"-> {parduotuve}: Klaida - {e}")
 
     return rezultatai
 
 if __name__ == "__main__":
     gauti_duomenys = patikrinti_putplascio_kainas()
-    print("\n--- REZULTATAI ---")
+    print("\n" + "="*80)
+    print(f"{'PARDUOTUVĖ':<15} | {'PREKĖ':<45} | {'KAINA':<15}")
+    print("="*80)
     if gauti_duomenys:
         for r in gauti_duomenys:
-            print(f"[{r['Parduotuve']}] {r['Prekė']} | Kaina: {r['Kaina']}")
+            print(f"{r['Parduotuve']:<15} | {r['Prekė']:<45} | {r['Kaina']:<15}")
     else:
-        print("Per šį patikrinimą kainų nepavyko ištraukti.")
+        print("Kainų nerasta.")
+    print("="*80)
