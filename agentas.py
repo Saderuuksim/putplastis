@@ -22,6 +22,7 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
+            # Senukams bandome su JS, bet jei kartais duos 500, galime leisti ir be JS arba paliekame true
             if parduotuve == "Senukai":
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
@@ -40,18 +41,18 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
+                # Atskiros taisyklės kiekvienai parduotuvei
                 if parduotuve == "Senukai":
                     for el in soup.find_all(['span', 'div', 'p']):
                         tekstas = el.get_text(strip=True)
                         if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
                             kaina = tekstas
                             break
-                else:
+                elif parduotuve == "Ermitazas":
                     for el in soup.find_all(['span', 'div', 'strong']):
                         tekstas = el.get_text(strip=True)
                         if len(tekstas) in [4, 5, 6] and tekstas.replace('.', '').replace(',', '').isdigit():
                             if int(tekstas) > 10:
-                                # Jei gauta pvz. 5699, paverčiame į 56,99 €
                                 t_str = str(tekstas)
                                 if len(t_str) >= 3 and '.' not in t_str and ',' not in t_str:
                                     kaina = f"{t_str[:-2]},{t_str[-2:]} €"
