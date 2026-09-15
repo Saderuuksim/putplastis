@@ -9,6 +9,7 @@ import smtplib
 import subprocess
 from bs4 import BeautifulSoup
 from urllib.parse import quote
+import requests  # <--- Štai šio importo trūko faile!
 
 parduotuves = {
     "Senukai": (
@@ -123,11 +124,10 @@ def patikrinti_putplascio_kainas():
 def atnaujinti_istorija_ir_irasyti(nauji_duomenys):
   istorija = []
 
-  # 1. Jeigu toks failas jau egzistuoja repozitorijoje, nuskaitome senus duomenis
   if os.path.exists(FAILO_VARDAS):
     with open(FAILO_VARDAS, mode="r", encoding="utf-8-sig") as f:
       reader = csv.reader(f, delimiter=";")
-      next(reader, None)  # Praleidžiame antraštes
+      next(reader, None)
       for row in reader:
         if len(row) >= 4:
           istorija.append({
@@ -137,11 +137,9 @@ def atnaujinti_istorija_ir_irasyti(nauji_duomenys):
               "Kaina": row[3],
           })
 
-  # 2. Pridedame šiandienos duomenis
   for r in nauji_duomenys:
     istorija.append(r)
 
-  # 3. Įrašome viską atgal į failą
   with open(FAILO_VARDAS, mode="w", newline="", encoding="utf-8-sig") as f:
     writer = csv.writer(f, delimiter=";")
     writer.writerow(["Data", "Parduotuve", "Preke", "Kaina"])
