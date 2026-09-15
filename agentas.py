@@ -5,7 +5,10 @@ from urllib.parse import quote
 
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
-    "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-EPS100-100-x-1000-x-1000-mm-crd62v6v"
+    "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-EPS100-100-x-1000-x-1000-mm-crd62v6v",
+    "Lemora": "https://lemora.lt/izoliacija-sandarinimas/silumos-garso-izoliacija/putu-plokstes/68-putplastis-termoporas-eps-100-nefrezuotas",
+    "ViskasNamams": "https://viskasnamams.lt/p/polistirolas-eps100-100-x-1000-x-1000-mm-1-210",
+    "MokiVezi": "https://mokivezi.lt/1065467-polistireninis-putplastis-etna-eps-100-matmenys-100-x-1000-x-1200-mm-1pak-0-72-m3"
 }
 
 def patikrinti_putplascio_kainas():
@@ -22,8 +25,8 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
-            # Senukams bandome su JS, bet jei kartais duos 500, galime leisti ir be JS arba paliekame true
-            if parduotuve == "Senukai":
+            # Nustatome render_js pagal parduotuvės specifiką
+            if parduotuve in ["Senukai", "MokiVezi"]:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
@@ -41,13 +44,14 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Atskiros taisyklės kiekvienai parduotuvei
+                # Atskiros kainos išrinkimo taisyklės kiekvienai parduotuvei remiantis puslapių struktūra
                 if parduotuve == "Senukai":
                     for el in soup.find_all(['span', 'div', 'p']):
                         tekstas = el.get_text(strip=True)
                         if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
                             kaina = tekstas
                             break
+                            
                 elif parduotuve == "Ermitazas":
                     for el in soup.find_all(['span', 'div', 'strong']):
                         tekstas = el.get_text(strip=True)
@@ -59,6 +63,30 @@ def patikrinti_putplascio_kainas():
                                 else:
                                     kaina = t_str + " €"
                                 break
+                                
+                elif parduotuve == "Lemora":
+                    # Lemoros nuotraukoje matome kainą su € simboliu (pvz., 55,04 €)
+                    for el in soup.find_all(['div', 'span', 'b', 'strong']):
+                        tekstas = el.get_text(strip=True)
+                        if '€' in tekstas and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
+                            kaina = tekstas
+                            break
+                            
+                elif parduotuve == "ViskasNamams":
+                    # ViskasNamams nuotraukoje kaina pateikiama formatu 50,71 € / pak
+                    for el in soup.find_all(['div', 'span', 'strong']):
+                        tekstas = el.get_text(strip=True)
+                        if '€' in tekstas and ('pak' in tekstas.lower() or len(tekstas) < 15) and any(c.isdigit() for c in tekstas):
+                            kaina = tekstas
+                            break
+                            
+                elif parduotuve == "MokiVezi":
+                    # MokiVezi lojalumo kaina nuotraukoje rodoma su raudona kortele (pvz., 69,59 € / pak.)
+                    for el in soup.find_all(['div', 'span', 'strong', 'b']):
+                        tekstas = el.get_text(strip=True)
+                        if '€' in tekstas and ('pak' in tekstas.lower() or len(tekstas) < 15) and any(c.isdigit() for c in tekstas):
+                            kaina = tekstas
+                            break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
