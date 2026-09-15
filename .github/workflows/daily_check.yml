@@ -17,9 +17,9 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Įdiegti reikalingas bibliotekas
+      - - name: Įdiegti reikalingas bibliotekas
         run: |
-          pip install requests beautifulsoup4
+          pip install requests beautifulsoup4 cloudscraper
 
       - name: Paleisti kainų agentą
         run: python agentas.py
