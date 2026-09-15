@@ -21,7 +21,6 @@ def patikrinti_putplascio_kainas():
         print(f"Jungiamasi prie {parduotuve} per ScrapingBee...")
         try:
             encoded_url = quote(url, safe='')
-            # render_js=true leidžia naršyklei pilnai užkrauti puslapio JavaScript elementus (kainas)
             scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             
             response = requests.get(scrapingbee_url, timeout=45)
@@ -33,25 +32,21 @@ def patikrinti_putplascio_kainas():
                 pavadinimas = None
                 kaina = None
                 
-                # Universalus elementų ieškojimas pagal dažniausiai naudojamas el. parduotuvių klases
-                # Ieškome bet kokio h1 elemento (pavadinimui)
+                # Ištraukiame pavadinimą (h1)
                 h1_el = soup.select_one("h1")
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Ieškome kainos pagal bendresnius atributus arba klases
-                # Šiuolaikinės el. parduotuvės kainas dažnai laiko specifinėse klasėse arba meta žymose
-                price_el = soup.select_one("[class*='price'], [data-price], .product-price, span.notranslate")
-                
-                if price_el:
-                    kaina = price_el.get_text(strip=True)
-                else:
-                    # Alternatyva: ieškoti teksto, kuriame yra € ženklas
-                    for span in soup.find_all(['span', 'div', 'p']):
-                        tekstas = span.get_text(strip=True)
-                        if '€' in tekstas and len(tekstas) < 15:
-                            kaina = tekstas
-                            break
+                # Paieškos logika kainai: peržiūrim visus elementus, kurie turėtų būti kainos
+                # Senukuose ir daugelyje kitų el. parduotuvių kaina turi simbolį € arba skaičius su kableliu
+                price_candidates = soup.select("[class*='price'], [data-price], span, div")
+                for el in price_candidates:
+                    tekstas = el.get_text(strip=True)
+                    # Ieškome trumpo teksto, kuriame yra € arba €/vnt., €/m² ir pan.
+                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 25 and any(c.isdigit() for c in tekstas):
+                        # Atmetame jeigu tai per ilgas tekstas
+                        kaina = tekstas
+                        break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
@@ -61,15 +56,14 @@ def patikrinti_putplascio_kainas():
                     })
                     print(f"-> Sėkmė! Rasta: {pavadinimas} | Kaina: {kaina}")
                 else:
-                    print(f"-> Puslapis gautas, bet nepavyko automatiškai ištraukti tikslios kainos.")
-                    # Jei nepavyko automatiškai, išvedame bent pavadinimą, kad matytume, jog puslapis pasiektas
+                    print(f"-> Puslapis gautas, bet nepavyko automatiškai išrinkti kainos.")
                     if pavadinimas:
-                        print(f"   Rastas pavadinimas: {pavadinimas}")
+                        print(f"   Pavadinimas: {pavadinimas}")
             else:
-                print(f"-> Klaida: ScrapingBee grąžino kodą {response.status_code}")
+                print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code}")
                 
         except Exception as e:
-            print(f"-> Įvyko klaida: {e}")
+            print(f"-> Įvyko klaida jungiantis prie {parduotuve}: {e}")
 
     return rezultatai
 
