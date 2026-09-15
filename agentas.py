@@ -37,16 +37,15 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Paieškos logika kainai: peržiūrim visus elementus, kurie turėtų būti kainos
-                # Senukuose ir daugelyje kitų el. parduotuvių kaina turi simbolį € arba skaičius su kableliu
-                price_candidates = soup.select("[class*='price'], [data-price], span, div")
-                for el in price_candidates:
+                # Patobulinta paieška: ieškome visų elementų, kurie turi kainos požymių
+                for el in soup.find_all(['span', 'div', 'p', 'b']):
                     tekstas = el.get_text(strip=True)
-                    # Ieškome trumpo teksto, kuriame yra € arba €/vnt., €/m² ir pan.
-                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 25 and any(c.isdigit() for c in tekstas):
-                        # Atmetame jeigu tai per ilgas tekstas
-                        kaina = tekstas
-                        break
+                    # Ieškome tekstų, kuriuose yra € arba EUR, skaitmenų, ir jie nėra per ilgi
+                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
+                        # Papildomas patikrinimas, kad nepagautume senos/akcijinės perbrauktos kainos, jei tokia yra
+                        if 'vnt' in tekstas.lower() or 'pak' in tekstas.lower() or '€' in tekstas:
+                            kaina = tekstas
+                            break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
@@ -56,7 +55,7 @@ def patikrinti_putplascio_kainas():
                     })
                     print(f"-> Sėkmė! Rasta: {pavadinimas} | Kaina: {kaina}")
                 else:
-                    print(f"-> Puslapis gautas, bet nepavyko automatiškai išrinkti kainos.")
+                    print(f"-> Puslapis gautas, bet nepavyko išrinkti kainos.")
                     if pavadinimas:
                         print(f"   Pavadinimas: {pavadinimas}")
             else:
