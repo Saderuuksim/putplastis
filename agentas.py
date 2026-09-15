@@ -1,196 +1,144 @@
-import os
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import quote
-import smtplib
-import csv
 from datetime import datetime
-import subprocess
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
+import os
+import smtplib
 from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import requests
 
-parduotuves = {
-    "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
-    "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-EPS100-100-x-1000-x-1000-mm-crd62v6v",
-    "ViskasNamams": "https://viskasnamams.lt/p/polistirolas-eps100-100-x-1000-x-1000-mm-1-210",
-    "MokiVezi": "https://mokivezi.lt/1065467-polistireninis-putplastis-etna-eps-100-matmenys-100-x-1000-x-1200-mm-1pak-0-72-m3"
+# ==========================================
+# 1. KONFIGŪRACIJA (Slaptieji raktai iš GitHub Secrets)
+# ==========================================
+SCRAPINGBEE_API_KEY = os.environ.get("SCRAPINGBEE_API_KEY")
+EMAIL_USER = os.environ.get("EMAIL_USER")
+EMAIL_PASS = os.environ.get("EMAIL_PASS")
+EMAIL_TO = os.environ.get("EMAIL_TO")
+
+# Stebimų prekių sąrašas (galite lengvai pridėti naujų)
+PREKES = {
+    "Senukai": {
+        "preke": "Medelių putplastis 10cm",
+        "url": "ČIA_ĮRAŠYKITE_SENUKŲ_NUORODĄ",
+    },
+    "Ermitazas": {
+        "preke": "Medelių putplastis 10cm",
+        "url": "ČIA_ĮRAŠYKITE_ERMITAŽO_NUORODĄ",
+    },
 }
 
-FAILO_VARDAS = "kainu_istorija.csv"
+CSV_FAILAS = "kainu_istorija.csv"
+SIandien = datetime.now().strftime("%Y-%m-%d")
 
-def patikrinti_putplascio_kainas():
-    api_key = os.getenv("SCRAPINGBEE_API_KEY")
-    if not api_key:
-        print("Klaida: nerastas SCRAPINGBEE_API_KEY!")
-        return []
 
-    rezultatai = []
-    siandien = datetime.now().strftime("%Y-%m-%d")
-    
-    for parduotuve, url in parduotuves.items():
-        print(f"Jungiamasi prie {parduotuve}...")
-        try:
-            encoded_url = quote(url, safe='')
-            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
-            
-            response = requests.get(scrapingbee_url, timeout=30)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                pavadinimas, kaina = None, None
-                
-                h1_el = soup.select_one("h1")
-                if h1_el:
-                    pavadinimas = h1_el.get_text(strip=True)
-                
-                if parduotuve == "Senukai":
-                    for el in soup.find_all(['span', 'div', 'p']):
-                        t = el.get_text(strip=True)
-                        if ('€' in t or 'EUR' in t) and len(t) < 20 and any(c.isdigit() for c in t):
-                            kaina = t
-                            break
-                elif parduotuve == "Ermitazas":
-                    for el in soup.find_all(['span', 'div', 'strong']):
-                        t = el.get_text(strip=True)
-                        if len(t) in [4, 5, 6] and t.replace('.', '').replace(',', '').isdigit() and int(t) > 10:
-                            if '.' not in t and ',' not in t:
-                                kaina = f"{t[:-2]},{t[-2:]} €"
-                            else:
-                                kaina = t + " €"
-                            break
-                elif parduotuve == "ViskasNamams":
-                    for el in soup.find_all(['span', 'div', 'strong']):
-                        t = el.get_text(strip=True)
-                        if '€' in t and '/' in t and any(c.isdigit() for c in t) and len(t) < 25:
-                            kaina = t
-                            break
-                elif parduotuve == "MokiVezi":
-                    for el in soup.find_all(['span', 'div', 'strong', 'b']):
-                        t = el.get_text(strip=True)
-                        if ('€' in t or 'pak' in t.lower()) and len(t) < 15 and any(c.isdigit() for c in t):
-                            skaitmenys = "".join([c for c in t if c.isdigit()])
-                            if len(skaitmenys) == 4:
-                                kaina = f"{skaitmenys[:-2]},{skaitmenys[-2:]} € / pak."
-                                break
-                            elif '€' in t:
-                                kaina = t
-                                break
+def gauti_kaina_per_scrapingbee(url):
+  """Funkcija per ScrapingBee atsisiunčia puslapį ir ištraukia kainą
 
-                if pavadinimas and kaina:
-                    rezultatai.append({
-                        "Data": siandien,
-                        "Parduotuve": parduotuve,
-                        "Prekė": pavadinimas[:50],
-                        "Kaina": kaina
-                    })
-                    print(f"-> {parduotuve}: Rasta kaina {kaina}")
-            else:
-                print(f"-> {parduotuve}: Praleista (statusas {response.status_code})")
-        except Exception as e:
-            print(f"-> {parduotuve}: Klaida - {e}")
+  (Čia reikėtų pritaikyti BeautifulSoup logiką pagal jūsų puslapio HTML struktūrą)
+  """
+  api_url = "https://app.scrapingbee.com/api/v1/"
+  params = {
+      "api_key": SCRAPINGBEE_API_KEY,
+      "url": url,
+      "render_js": "false",  # Jei puslapis užkrauna kainą su JS, pakeiskite į "true"
+  }
+  try:
+    response = requests.get(api_url, params=params, timeout=30)
+    if response.status_code == 200:
+      # ČIA PAKEISKITE PAGAL SAVO PUSLAPIO HTML STRUKTŪRĄ:
+      # Pavyzdys su BeautifulSoup:
+      # from bs4 import BeautifulSoup
+      # soup = BeautifulSoup(response.text, 'html.parser')
+      # kaina_str = soup.find('span', {'class': 'price'}).text
+      # return float(kaina_str.replace('€', '').strip().replace(',', '.'))
 
-    return rezultatai
-
-def atnaujinti_istorija_ir_irasyti(nauji_duomenys):
-    istorija = []
-    
-    # 1. Jeigu toks failas jau egzistuoja repozitorijoje, nuskaitome senus duomenis
-    if os.path.exists(FAILO_VARDAS):
-        with open(FAILO_VARDAS, mode='r', encoding='utf-8-sig') as f:
-            reader = csv.reader(f, delimiter=';')
-            next(reader, None) # Praleidžiame antraštes
-            for row in reader:
-                if len(row) >= 4:
-                    istorija.append({"Data": row[0], "Parduotuve": row[1], "Prekė": row[2], "Kaina": row[3]})
-                    
-    # 2. Pridedame šiandienos duomenis
-    for r in nauji_duomenys:
-        istorija.append(r)
-        
-    # 3. Įrašome viską atgal į failą
-    with open(FAILO_VARDAS, mode='w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.writer(f, delimiter=';')
-        writer.writerow(["Data", "Parduotuve", "Preke", "Kaina"])
-        for item in istorija:
-            writer.writerow([item['Data'], item['Parduotuve'], item['Prekė'], item['Kaina']])
-            
-    return FAILO_VARDAS
-
-def commit_and_push_csv():
-    try:
-        subprocess.run(["git", "config", "--global", "user.name", "Kainu Agentas"], check=True)
-        subprocess.run(["git", "config", "--global", "user.email", "agent@github.action"], check=True)
-        subprocess.run(["git", "add", FAILO_VARDAS], check=True)
-        # Tikriname, ar yra pokyčių, kuriuos reikia įrašyti
-        status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True, check=True)
-        if status.stdout.strip():
-            subprocess.run(["git", "commit", "-m", "Automatinis kainų istorijos atnaujinimas"], check=True)
-            subprocess.run(["git", "push"], check=True)
-            print("Kainų istorijos failas sėkmingai atnaujintas GitHub repozitorijoje!")
-        else:
-            print("Jokių naujų pokyčių istorijos failyje.")
-    except Exception as e:
-        print(f"Nepavyko automatiškai įkelti failo į GitHub: {e}")
-
-def siusti_el_pasta(nauji_duomenys):
-    sender_email = os.getenv("GMAIL_USER")
-    sender_password = os.getenv("GMAIL_PASSWORD")
-    
-    if not sender_email or not sender_password:
-        print("Klaida: Nerasti el. pašto kintamieji.")
-        return
-
-    csv_kelias = atnaujinti_istorija_ir_irasyti(nauji_duomenys)
-    
-    # Po to, kai failas atnaujintas vietoje, automatiškai užregistruojame jį GitHub
-    commit_and_push_csv()
-
-    siandien = datetime.now().strftime("%Y-%m-%d")
-
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['To'] = sender_email
-    msg['Subject'] = f"🏗️ Putplasčio kainos ({siandien})"
-
-    # Laiško tekstas – tik šiandienos kainos
-    body = f"Sveiki,\n\nŠtai šios dienos ({siandien}) putplasčio kainų apžvalga:\n\n"
-    body += f"{'PARDUOTUVĖ':<15} | {'KAINA':<15} | {'PREKĖ':<40}\n"
-    body += "-" * 75 + "\n"
-    
-    for r in nauji_duomenys:
-        body += f"{r['Parduotuve']:<15} | {r['Kaina']:<15} | {r['Prekė']:<40}\n"
-        
-    body += "\nPrisegtame faile rasite visą kainų istoriją nuo pat pradžių."
-    msg.attach(MIMEText(body, 'plain'))
-
-    # Pridedame bendrą istorijos failą
-    try:
-        with open(csv_kelias, "rb") as attachment:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(attachment.read())
-        
-        encoders.encode_base64(part)
-        part.add_header("Content-Disposition", f"attachment; filename= {csv_kelias}")
-        msg.attach(part)
-    except Exception as e:
-        print(f"Nepavyko pridėti failo: {e}")
-        return
-
-    try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, sender_email, msg.as_string())
-        server.quit()
-        print("El. laiškas sėkmingai išsiųstas!")
-    except Exception as e:
-        print(f"Nepavyko išsiųsti el. pašto: {e}")
-
-if __name__ == "__main__":
-    gauti_duomenys = patikrinti_putplascio_kainas()
-    if gauti_duomenys:
-        siusti_el_pasta(gauti_duomenys)
+      # Kol kas grąžinam pavyzdinę kainą testavimui:
+      return 15.99
     else:
-        print("Kainų nerasta, laiškas nesiunčiamas.")
+      print(f"Klaida siunčiant užklausą: {response.status_code}")
+      return None
+  except Exception as e:
+    print(f"Klaida: {e}")
+    return None
+
+
+# ==========================================
+# 2. DUOMENŲ SURINKIMAS IR CSV PILDYMAS
+# ==========================================
+file_exists = os.path.isfile(CSV_FAILAS)
+nauji_duomenys = []
+
+print("Pradedamas kainų tikrinimas...")
+
+for parduotuve, info in PREKES.items():
+  print(f"Tikrinama: {parduotuve} - {info['preke']}...")
+  kaina = gauti_kaina_per_scrapingbee(info["url"])
+
+  if kaina is not None:
+    nauji_duomenys.append({
+        "Data": siandien,
+        "Parduotuve": parduotuve,
+        "Preke": info["preke"],
+        "Kaina_Eur": f"{kaina:.2f}",
+    })
+
+# Įrašome į CSV failą (Data ir Parduotuvė atskiruose stulpeliuose)
+with open(CSV_FAILAS, mode="a", encoding="utf-8", newline="") as f:
+  import csv
+
+  writer = csv.writer(f)
+
+  # Jeigu failas naujas, sugeneruojame stulpelių antraštes
+  if not file_exists:
+    writer.writerow(["Data", "Parduotuve", "Preke", "Kaina_Eur"])
+
+  for d in nauji_duomenys:
+    writer.writerow([d["Data"], d["Parduotuve"], d["Preke"], d["Kaina_Eur"]])
+
+print("Duomenys sėkmingai atnaujinti CSV faile.")
+
+# ==========================================
+# 3. SIUNTIMAS EL. PAŠTU
+# ==========================================
+if not EMAIL_USER or not EMAIL_PASS or not EMAIL_TO:
+  print(
+      "Nenurodyti el. pašto nustatymai GitHub Secrets, laiškas nebus siunčiamas."
+  )
+  exit()
+
+msg = MIMEMultipart()
+msg["From"] = EMAIL_USER
+msg["To"] = EMAIL_TO
+msg["Subject"] = f"Kainų ataskaita ({siandien})"
+
+# Laiško tekstas (rodomos tik šios dienos kainos)
+tekstas = f"Sveiki,\n\nŠtai šios dienos ({siandien}) medelių putplasčio kainos:\n\n"
+for d in nauji_duomenys:
+  tekstas += (
+      f"- {d['Parduotuve']} ({d['Preke']}): {d['Kaina_Eur']} €\n"
+  )
+tekstas += (
+    "\nPrisegtuose dokumentuose rasite pilną kainų istorijos CSV failą.\n\nPagarbiai,\nJūsų kainų agentas"
+)
+
+msg.attach(MIMEText(tekstas, "plain", "utf-8"))
+
+# Prisegame istorijos CSV failą prie el. pašto
+with open(CSV_FAILAS, "rb") as attachment:
+  part = MIMEBase("application", "octet-stream")
+  part.set_payload(attachment.read())
+
+encoders.encode_base64(part)
+part.add_header("Content-Disposition", f"attachment; filename= {CSV_FAILAS}")
+msg.attach(part)
+
+# Siuntimas per Gmail SMTP
+try:
+  server = smtplib.SMTP("smtp.gmail.com", 587)
+  server.starttls()
+  server.login(EMAIL_USER, EMAIL_PASS)
+  server.sendmail(EMAIL_USER, EMAIL_TO, msg.as_string())
+  server.quit()
+  print("El. laiškas su ataskaita sėkmingai išsiųstas!")
+except Exception as e:
+  print(f"Klaida siunčiant el. laišką: {e}")
