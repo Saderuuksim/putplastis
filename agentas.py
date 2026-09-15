@@ -21,7 +21,12 @@ def patikrinti_putplascio_kainas():
         print(f"Jungiamasi prie {parduotuve} per ScrapingBee...")
         try:
             encoded_url = quote(url, safe='')
-            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
+            
+            # Senukams reikalingas JavaScript, o Ermitažui bandome be JS (render_js=false), kad išvengtume 500 klaidos
+            if parduotuve == "Senukai":
+                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
+            else:
+                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
             response = requests.get(scrapingbee_url, timeout=45)
             print(f"-> {parduotuve} HTTP statusas: {response.status_code}")
@@ -32,32 +37,16 @@ def patikrinti_putplascio_kainas():
                 pavadinimas = None
                 kaina = None
                 
-                # Ištraukiame pavadinimą (h1)
                 h1_el = soup.select_one("h1")
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                if parduotuve == "Senukai":
-                    # Senukų kainos paieška
-                    for el in soup.find_all(['span', 'div', 'p']):
-                        tekstas = el.get_text(strip=True)
-                        if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
-                            kaina = tekstas
-                            break
-                else:
-                    # Ermitažo specifinė kainos paieška (dažnai būna tam tikrose klasėse arba išskaidyta)
-                    # Pabandykime rasti elementą su 'price' klasės fragmentu arba meta žyma
-                    price_el = soup.select_one(".price, [class*='product-price'], [class*='price-val']")
-                    if price_el:
-                        kaina = price_el.get_text(strip=True)
-                    
-                    # Jei per klases nepavyko, ieškome bet kurio elemento su € simboliu, kuris yra trumpas
-                    if not kaina:
-                        for el in soup.find_all(['span', 'div', 'b', 'strong']):
-                            tekstas = el.get_text(strip=True)
-                            if ('€' in tekstas) and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
-                                kaina = tekstas
-                                break
+                # Bendras kainos ieškojimo algoritmas
+                for el in soup.find_all(['span', 'div', 'p', 'b', 'strong']):
+                    tekstas = el.get_text(strip=True)
+                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
+                        kaina = tekstas
+                        break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
@@ -70,8 +59,6 @@ def patikrinti_putplascio_kainas():
                     print(f"-> Puslapis gautas, bet nepavyko išrinkti kainos.")
                     if pavadinimas:
                         print(f"   Pavadinimas: {pavadinimas}")
-                    if kaina:
-                        print(f"   Rasta kaina: {kaina}")
             else:
                 print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code}")
                 
