@@ -47,21 +47,17 @@ def patikrinti_putplascio_kainas():
                             kaina = tekstas
                             break
                 else:
-                    # Ermitažui: ieškome kainos konteinerio arba suapvalintų kainos dalių
-                    # Dažnai e-parduotuvėse kaina pasiekiama per bendrą kainos bloką
-                    price_container = soup.select_one(".price, [class*='price'], [class*='kaina']")
-                    if price_container:
-                        kaina = price_container.get_text(strip=True)
-                    
-                    # Jei per klasę nepavyko, ieškome pagal elementus, kurie savo viduje turi skaičius be raidžių (gryna kaina)
-                    if not kaina:
-                        for el in soup.find_all(['span', 'div', 'strong']):
-                            tekstas = el.get_text(strip=True)
-                            # Ermitažo lojalumo kaina nuotraukoje atrodo kaip dideli skaičiai (pvz., 5699 arba 56.99)
-                            if len(tekstas) in [4, 5, 6] and tekstas.replace('.', '').replace(',', '').isdigit():
-                                if '.' in tekstas or ',' in tekstas or int(tekstas) > 10:
-                                    kaina = tekstas + " €"
-                                    break
+                    for el in soup.find_all(['span', 'div', 'strong']):
+                        tekstas = el.get_text(strip=True)
+                        if len(tekstas) in [4, 5, 6] and tekstas.replace('.', '').replace(',', '').isdigit():
+                            if int(tekstas) > 10:
+                                # Jei gauta pvz. 5699, paverčiame į 56,99 €
+                                t_str = str(tekstas)
+                                if len(t_str) >= 3 and '.' not in t_str and ',' not in t_str:
+                                    kaina = f"{t_str[:-2]},{t_str[-2:]} €"
+                                else:
+                                    kaina = t_str + " €"
+                                break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
