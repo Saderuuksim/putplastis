@@ -22,11 +22,11 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
-            # Ermitažui bandome sujungti su render_js=true, bet jei nepaėjo, pritaikysime universalią paiešką
+            # Griežtas atskyrimas: Senukams reikalaujam JS, Ermitažui – NE (kad neblokuotų)
             if parduotuve == "Senukai":
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
-                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
+                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
             response = requests.get(scrapingbee_url, timeout=45)
             print(f"-> {parduotuve} HTTP statusas: {response.status_code}")
@@ -41,13 +41,15 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Universalus ieškojimas: peržiūrim visus elementus ir ieškome kainos formato (skaičius + €)
-                for el in soup.find_all(['span', 'div', 'p', 'b', 'strong', 'price']):
-                    tekstas = el.get_text(strip=True)
-                    # Ieškome elementų, kurie turi € ženklą, skaitmenį, ir yra trumpesni nei 15 simbolių
-                    if '€' in tekstas and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
-                        # Atmetame jeigu tai per bendras tekstas
-                        if 'eur' in tekstas.lower() or '€' in tekstas:
+                # Kainos paieška
+                for el in soup.find_all(['span', 'div', 'p', 'b', 'strong', 'meta']):
+                    if el.name == 'meta':
+                        if el.get('property') in ['product:price:amount', 'og:price:amount'] and el.get('content'):
+                            kaina = el.get('content') + " €"
+                            break
+                    else:
+                        tekstas = el.get_text(strip=True)
+                        if '€' in tekstas and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
                             kaina = tekstas
                             break
 
@@ -63,7 +65,7 @@ def patikrinti_putplascio_kainas():
                     if pavadinimas:
                         print(f"   Pavadinimas: {pavadinimas}")
             else:
-                print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code}")
+                print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code} (praleidžiama)")
                 
         except Exception as e:
             print(f"-> Įvyko klaida jungiantis prie {parduotuve}: {e}")
