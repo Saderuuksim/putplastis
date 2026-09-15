@@ -25,7 +25,8 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
-            if parduotuve in ["Senukai", "MokiVezi"]:
+            # Lemorai ir Senukams/MokiVezi naudojame render_js=true
+            if parduotuve in ["Senukai", "MokiVezi", "Lemora"]:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
@@ -42,7 +43,6 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Tikslus kainos traukimas pagal parduotuves
                 if parduotuve == "Senukai":
                     for el in soup.find_all(['span', 'div', 'p']):
                         t = el.get_text(strip=True)
@@ -59,24 +59,29 @@ def patikrinti_putplascio_kainas():
                                 kaina = t + " €"
                             break
                 elif parduotuve == "Lemora":
-                    # Lemoros kainos blokas
-                    for el in soup.select("div, span"):
+                    for el in soup.find_all(['span', 'div', 'strong', 'b']):
                         t = el.get_text(strip=True)
-                        if '€' in t and ('pak' in t.lower() or len(t) < 10) and any(c.isdigit() for c in t):
+                        if '€' in t and len(t) < 15 and any(c.isdigit() for c in t):
                             kaina = t
                             break
                 elif parduotuve == "ViskasNamams":
-                    for el in soup.select("div, span"):
+                    for el in soup.find_all(['span', 'div', 'strong']):
                         t = el.get_text(strip=True)
                         if '€' in t and '/' in t and any(c.isdigit() for c in t) and len(t) < 25:
                             kaina = t
                             break
                 elif parduotuve == "MokiVezi":
-                    for el in soup.select("div, span"):
+                    for el in soup.find_all(['span', 'div', 'strong', 'b']):
                         t = el.get_text(strip=True)
-                        if '€' in t and 'pak' in t.lower() and any(c.isdigit() for c in t) and len(t) < 25:
-                            kaina = t
-                            break
+                        if ('€' in t or 'pak' in t.lower()) and len(t) < 15 and any(c.isdigit() for c in t):
+                            # Jei sujungti skaitmenys be kablelio (pvz. 6959), sutvarkome
+                            skaitmenys = "".join([c for c in t if c.isdigit()])
+                            if len(skaitmenys) == 4:
+                                kaina = f"{skaitmenys[:-2]},{skaitmenys[-2:]} € / pak."
+                                break
+                            elif '€' in t:
+                                kaina = t
+                                break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
