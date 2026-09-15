@@ -1,4 +1,3 @@
-import csv
 from datetime import datetime
 from email import encoders
 from email.mime.base import MIMEBase
@@ -8,8 +7,9 @@ import os
 import smtplib
 import subprocess
 from bs4 import BeautifulSoup
+import pandas as pd
+import requests
 from urllib.parse import quote
-import requests  # <--- Štai šio importo trūko faile!
 
 parduotuves = {
     "Senukai": (
@@ -27,7 +27,7 @@ parduotuves = {
     ),
 }
 
-FAILO_VARDAS = "kainu_istorija.csv"
+FAILO_VARDAS = "kainu_istorija.xlsx"
 
 
 def patikrinti_putplascio_kainas():
@@ -124,29 +124,28 @@ def patikrinti_putplascio_kainas():
 def atnaujinti_istorija_ir_irasyti(nauji_duomenys):
   istorija = []
 
+  # 1. Jeigu egzistuoja senas excel failas, nuskaitome
   if os.path.exists(FAILO_VARDAS):
-    with open(FAILO_VARDAS, mode="r", encoding="utf-8-sig") as f:
-      reader = csv.reader(f, delimiter=";")
-      next(reader, None)
-      for row in reader:
-        if len(row) >= 4:
-          istorija.append({
-              "Data": row[0],
-              "Parduotuve": row[1],
-              "Prekė": row[2],
-              "Kaina": row[3],
-          })
+    try:
+      df_senas = pd.read_excel(FAILO_VARDAS)
+      for _, row in df_senas.iterrows():
+        istorija.append({
+            "Data": str(row.get("Data", "")),
+            "Parduotuve": str(row.get("Parduotuve", "")),
+            "Prekė": str(row.get("Preke", "")),
+            "Kaina": str(row.get("Kaina", "")),
+        })
+    except Exception as e:
+      print(f"Nepavyko perskaityti seno failo: {e}")
 
+  # 2. Pridedame naujus duomenis
   for r in nauji_duomenys:
     istorija.append(r)
 
-  with open(FAILO_VARDAS, mode="w", newline="", encoding="utf-8-sig") as f:
-    writer = csv.writer(f, delimiter=";")
-    writer.writerow(["Data", "Parduotuve", "Preke", "Kaina"])
-    for item in istorija:
-      writer.writerow(
-          [item["Data"], item["Parduotuve"], item["Prekė"], item["Kaina"]]
-      )
+  # 3. Sukuriame DataFrame ir išsaugome tiesiai į Excel (.xlsx) formatą
+  df_naujas = pd.DataFrame(istorija)
+  df_naujas.columns = ["Data", "Parduotuve", "Preke", "Kaina"]
+  df_naujas.to_excel(FAILO_VARDAS, index=False)
 
   return FAILO_VARDAS
 
