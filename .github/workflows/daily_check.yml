@@ -19,7 +19,9 @@ jobs:
 
       - name: Įdiegti reikalingas bibliotekas
         run: |
-          pip install requests beautifulsoup4 cloudscraper
+          pip install requests beautifulsoup4
 
       - name: Paleisti kainų agentą
+        env:
+          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}
         run: python agentas.py
