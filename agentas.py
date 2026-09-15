@@ -5,7 +5,7 @@ from urllib.parse import quote
 
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
-    "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-eps100-100-x-1000-x-1000-mm-crd62v6v"
+    "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-EPS100-100-x-1000-x-1000-mm-crd62v6v"
 }
 
 def patikrinti_putplascio_kainas():
@@ -22,7 +22,6 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
-            # Senukams reikalingas JavaScript, o Ermitažui bandome be JS (render_js=false), kad išvengtume 500 klaidos
             if parduotuve == "Senukai":
                 scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             else:
@@ -37,16 +36,30 @@ def patikrinti_putplascio_kainas():
                 pavadinimas = None
                 kaina = None
                 
+                # Pavadinimas
                 h1_el = soup.select_one("h1")
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Bendras kainos ieškojimo algoritmas
-                for el in soup.find_all(['span', 'div', 'p', 'b', 'strong']):
-                    tekstas = el.get_text(strip=True)
-                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
-                        kaina = tekstas
-                        break
+                if parduotuve == "Senukai":
+                    for el in soup.find_all(['span', 'div', 'p']):
+                        tekstas = el.get_text(strip=True)
+                        if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
+                            kaina = tekstas
+                            break
+                else:
+                    # Ermitažui dažnai kainą patogiausia paimti iš OpenGraph / meta žymų arba spec. klasių
+                    meta_price = soup.find("meta", property="product:price:amount") or soup.find("meta", itemprop="price")
+                    if meta_price and meta_price.get("content"):
+                        kaina = meta_price.get("content") + " €"
+                    
+                    # Jei meta nerasta, ieškome pagal elementus
+                    if not kaina:
+                        for el in soup.find_all(['span', 'div', 'b', 'strong', 'p']):
+                            tekstas = el.get_text(strip=True)
+                            if ('€' in tekstas) and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
+                                kaina = tekstas
+                                break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
