@@ -2,6 +2,9 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
@@ -12,9 +15,8 @@ parduotuves = {
 
 def patikrinti_putplascio_kainas():
     api_key = os.getenv("SCRAPINGBEE_API_KEY")
-    
     if not api_key:
-        print("Klaida: nerastas SCRAPINGBEE_API_KEY raktas nustatymuose!")
+        print("Klaida: nerastas SCRAPINGBEE_API_KEY!")
         return []
 
     rezultatai = []
@@ -23,17 +25,13 @@ def patikrinti_putplascio_kainas():
         print(f"Jungiamasi prie {parduotuve}...")
         try:
             encoded_url = quote(url, safe='')
-            
-            # Naudojame render_js=false visoms, nes tai stabiliausia ir taupo API kreditus
             scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
             response = requests.get(scrapingbee_url, timeout=30)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                
-                pavadinimas = None
-                kaina = None
+                pavadinimas, kaina = None, None
                 
                 h1_el = soup.select_one("h1")
                 if h1_el:
@@ -53,12 +51,6 @@ def patikrinti_putplascio_kainas():
                                 kaina = f"{t[:-2]},{t[-2:]} €"
                             else:
                                 kaina = t + " €"
-                            break
-                elif parduotuve == "Lemora":
-                    for el in soup.find_all(['span', 'div', 'strong', 'b']):
-                        t = el.get_text(strip=True)
-                        if '€' in t and len(t) < 15 and any(c.isdigit() for c in t):
-                            kaina = t
                             break
                 elif parduotuve == "ViskasNamams":
                     for el in soup.find_all(['span', 'div', 'strong']):
@@ -85,15 +77,44 @@ def patikrinti_putplascio_kainas():
                         "Kaina": kaina
                     })
                     print(f"-> {parduotuve}: Rasta kaina {kaina}")
-                else:
-                    print(f"-> {parduotuve}: Puslapis gautas, bet nerasta kaina.")
             else:
-                print(f"-> {parduotuve}: Praleista (gautas statusas {response.status_code})")
-                
+                print(f"-> {parduotuve}: Praleista (statusas {response.status_code})")
         except Exception as e:
             print(f"-> {parduotuve}: Klaida - {e}")
 
     return rezultatai
+
+def siusti_el_pasta(rezultatai):
+    sender_email = os.getenv("GMAIL_USER")
+    sender_password = os.getenv("GMAIL_PASSWORD")
+    
+    if not sender_email or not sender_password:
+        print("Klaida: Nerasti el. pašto kintamieji (GMAIL_USER arba GMAIL_PASSWORD).")
+        return
+
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['To'] = sender_email
+    msg['Subject'] = "🏗️ Rytinė putplasčio kainų apžvalga"
+
+    body = "Štai šiandienos rasti kainų rezultatai:\n\n"
+    body += f"{'PARDUOTUVĖ':<15} | {'PREKĖ':<45} | {'KAINA':<15}\n"
+    body += "-" * 80 + "\n"
+    
+    for r in rezultatai:
+        body += f"{r['Parduotuve']:<15} | {r['Prekė']:<45} | {r['Kaina']:<15}\n"
+        
+    msg.attach(MIMEText(body, 'plain'))
+
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, sender_email, msg.as_string())
+        server.quit()
+        print("El. laiškas sėkmingai išsiųstas į Gmail!")
+    except Exception as e:
+        print(f"Nepavyko išsiųsti el. pašto: {e}")
 
 if __name__ == "__main__":
     gauti_duomenys = patikrinti_putplascio_kainas()
@@ -103,6 +124,9 @@ if __name__ == "__main__":
     if gauti_duomenys:
         for r in gauti_duomenys:
             print(f"{r['Parduotuve']:<15} | {r['Prekė']:<45} | {r['Kaina']:<15}")
+        print("="*80)
+        # Siunčiame el. laišką
+        siusti_el_pasta(gauti_duomenys)
     else:
         print("Kainų nerasta.")
-    print("="*80)
+        print("="*80)
