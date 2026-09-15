@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import quote
 
-# Jūsų nurodytos tiesioginės nuorodos
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
     "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-eps100-100-x-1000-x-1000-mm-crd62v6v"
@@ -21,11 +20,11 @@ def patikrinti_putplascio_kainas():
     for parduotuve, url in parduotuves.items():
         print(f"Jungiamasi prie {parduotuve} per ScrapingBee...")
         try:
-            # Saugiai užkoduojame nuorodą, kad API jos nesugadintų
             encoded_url = quote(url, safe='')
-            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
+            # render_js=true leidžia naršyklei pilnai užkrauti puslapio JavaScript elementus (kainas)
+            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
             
-            response = requests.get(scrapingbee_url, timeout=30)
+            response = requests.get(scrapingbee_url, timeout=45)
             print(f"-> {parduotuve} HTTP statusas: {response.status_code}")
             
             if response.status_code == 200:
@@ -34,22 +33,26 @@ def patikrinti_putplascio_kainas():
                 pavadinimas = None
                 kaina = None
                 
-                if parduotuve == "Senukai":
-                    # Paieška Senukų puslapyje
-                    pav_el = soup.select_one("h1")
-                    # Ieškom elementų, kurie dažniausiai talpina kainą Senukuose
-                    kain_el = soup.select_one(".price, span[data-price], .catalog-price")
-                    if pav_el: pavadinimas = pavadin_el.get_text(strip=True)
-                    if kain_el: kaina = kain_el.get_text(strip=True)
-                    
-                else:  # Ermitazas
-                    # Paieška Ermitažo puslapyje
-                    pav_el = soup.select_one("h1")
-                    # Ermitažo kainos blokai
-                    kain_el = soup.select_one(".price, .product-price, span[data-price]")
-                    if pav_el: pavadinimas = pav_el.get_text(strip=True)
-                    if kain_el: kaina = kain_el.get_text(strip=True)
+                # Universalus elementų ieškojimas pagal dažniausiai naudojamas el. parduotuvių klases
+                # Ieškome bet kokio h1 elemento (pavadinimui)
+                h1_el = soup.select_one("h1")
+                if h1_el:
+                    pavadinimas = h1_el.get_text(strip=True)
                 
+                # Ieškome kainos pagal bendresnius atributus arba klases
+                # Šiuolaikinės el. parduotuvės kainas dažnai laiko specifinėse klasėse arba meta žymose
+                price_el = soup.select_one("[class*='price'], [data-price], .product-price, span.notranslate")
+                
+                if price_el:
+                    kaina = price_el.get_text(strip=True)
+                else:
+                    # Alternatyva: ieškoti teksto, kuriame yra € ženklas
+                    for span in soup.find_all(['span', 'div', 'p']):
+                        tekstas = span.get_text(strip=True)
+                        if '€' in tekstas and len(tekstas) < 15:
+                            kaina = tekstas
+                            break
+
                 if pavadinimas and kaina:
                     rezultatai.append({
                         "Parduotuve": parduotuve,
@@ -58,7 +61,10 @@ def patikrinti_putplascio_kainas():
                     })
                     print(f"-> Sėkmė! Rasta: {pavadinimas} | Kaina: {kaina}")
                 else:
-                    print(f"-> Puslapis gautas, bet nepavyko tiksliai rasti kainos ar pavadinimo elementų.")
+                    print(f"-> Puslapis gautas, bet nepavyko automatiškai ištraukti tikslios kainos.")
+                    # Jei nepavyko automatiškai, išvedame bent pavadinimą, kad matytume, jog puslapis pasiektas
+                    if pavadinimas:
+                        print(f"   Rastas pavadinimas: {pavadinimas}")
             else:
                 print(f"-> Klaida: ScrapingBee grąžino kodą {response.status_code}")
                 
