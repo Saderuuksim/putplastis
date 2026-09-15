@@ -25,13 +25,10 @@ def patikrinti_putplascio_kainas():
         try:
             encoded_url = quote(url, safe='')
             
-            # Lemorai ir Senukams/MokiVezi naudojame render_js=true
-            if parduotuve in ["Senukai", "MokiVezi", "Lemora"]:
-                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=true"
-            else:
-                scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
+            # Naudojame render_js=false visoms, nes tai stabiliausia ir taupo API kreditus
+            scrapingbee_url = f"https://app.scrapingbee.com/api/v1/?api_key={api_key}&url={encoded_url}&render_js=false"
             
-            response = requests.get(scrapingbee_url, timeout=45)
+            response = requests.get(scrapingbee_url, timeout=30)
             
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -74,7 +71,6 @@ def patikrinti_putplascio_kainas():
                     for el in soup.find_all(['span', 'div', 'strong', 'b']):
                         t = el.get_text(strip=True)
                         if ('€' in t or 'pak' in t.lower()) and len(t) < 15 and any(c.isdigit() for c in t):
-                            # Jei sujungti skaitmenys be kablelio (pvz. 6959), sutvarkome
                             skaitmenys = "".join([c for c in t if c.isdigit()])
                             if len(skaitmenys) == 4:
                                 kaina = f"{skaitmenys[:-2]},{skaitmenys[-2:]} € / pak."
@@ -91,9 +87,9 @@ def patikrinti_putplascio_kainas():
                     })
                     print(f"-> {parduotuve}: Rasta kaina {kaina}")
                 else:
-                    print(f"-> {parduotuve}: Nepavyko rasti kainos.")
+                    print(f"-> {parduotuve}: Puslapis gautas, bet nerasta kaina.")
             else:
-                print(f"-> {parduotuve}: HTTP klaida {response.status_code}")
+                print(f"-> {parduotuve}: Praleista (gautas statusas {response.status_code})")
                 
         except Exception as e:
             print(f"-> {parduotuve}: Klaida - {e}")
