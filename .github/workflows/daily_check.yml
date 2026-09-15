@@ -22,8 +22,8 @@ jobs:
           pip install requests beautifulsoup4
 
       - name: Paleisti kainų agentą
-      env:
-        SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}
-        GMAIL_USER: ${{ secrets.GMAIL_USER }}
-        GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
-      run: python agentas.py
+        env:
+          SCRAPINGBEE_API_KEY: ${{ secrets.SCRAPINGBEE_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+        run: python agentas.py
