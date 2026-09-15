@@ -6,7 +6,6 @@ from urllib.parse import quote
 parduotuves = {
     "Senukai": "https://www.senukai.lt/p/putplastis-bewi-eps100-100-cm-x-100-cm-x-10-cm/e69k?mtd=searchPage&src=lupasearch",
     "Ermitazas": "https://www.ermitazas.lt/p/polistireninio-putplascio-plokste-termoporas-EPS100-100-x-1000-x-1000-mm-crd62v6v",
-    "Lemora": "https://lemora.lt/izoliacija-sandarinimas/silumos-garso-izoliacija/putu-plokstes/68-putplastis-termoporas-eps-100-nefrezuotas",
     "ViskasNamams": "https://viskasnamams.lt/p/polistirolas-eps100-100-x-1000-x-1000-mm-1-210",
     "MokiVezi": "https://mokivezi.lt/1065467-polistireninis-putplastis-etna-eps-100-matmenys-100-x-1000-x-1200-mm-1pak-0-72-m3"
 }
