@@ -37,15 +37,27 @@ def patikrinti_putplascio_kainas():
                 if h1_el:
                     pavadinimas = h1_el.get_text(strip=True)
                 
-                # Patobulinta paieška: ieškome visų elementų, kurie turi kainos požymių
-                for el in soup.find_all(['span', 'div', 'p', 'b']):
-                    tekstas = el.get_text(strip=True)
-                    # Ieškome tekstų, kuriuose yra € arba EUR, skaitmenų, ir jie nėra per ilgi
-                    if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
-                        # Papildomas patikrinimas, kad nepagautume senos/akcijinės perbrauktos kainos, jei tokia yra
-                        if 'vnt' in tekstas.lower() or 'pak' in tekstas.lower() or '€' in tekstas:
+                if parduotuve == "Senukai":
+                    # Senukų kainos paieška
+                    for el in soup.find_all(['span', 'div', 'p']):
+                        tekstas = el.get_text(strip=True)
+                        if ('€' in tekstas or 'EUR' in tekstas) and len(tekstas) < 20 and any(c.isdigit() for c in tekstas):
                             kaina = tekstas
                             break
+                else:
+                    # Ermitažo specifinė kainos paieška (dažnai būna tam tikrose klasėse arba išskaidyta)
+                    # Pabandykime rasti elementą su 'price' klasės fragmentu arba meta žyma
+                    price_el = soup.select_one(".price, [class*='product-price'], [class*='price-val']")
+                    if price_el:
+                        kaina = price_el.get_text(strip=True)
+                    
+                    # Jei per klases nepavyko, ieškome bet kurio elemento su € simboliu, kuris yra trumpas
+                    if not kaina:
+                        for el in soup.find_all(['span', 'div', 'b', 'strong']):
+                            tekstas = el.get_text(strip=True)
+                            if ('€' in tekstas) and len(tekstas) < 15 and any(c.isdigit() for c in tekstas):
+                                kaina = tekstas
+                                break
 
                 if pavadinimas and kaina:
                     rezultatai.append({
@@ -58,6 +70,8 @@ def patikrinti_putplascio_kainas():
                     print(f"-> Puslapis gautas, bet nepavyko išrinkti kainos.")
                     if pavadinimas:
                         print(f"   Pavadinimas: {pavadinimas}")
+                    if kaina:
+                        print(f"   Rasta kaina: {kaina}")
             else:
                 print(f"-> Parduotuvė pasiekta su klaidos kodu: {response.status_code}")
                 
